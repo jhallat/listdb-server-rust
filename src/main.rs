@@ -25,7 +25,14 @@ fn handle_client(mut stream: TcpStream, db_home: &str) -> Result<(), Error> {
         let input = str::from_utf8(&buffer[..bytes_read]).unwrap();
         command.push_str(input);
         if input.contains("\n") {
+            println!("rcvd: {}", input);
             match db_engine.request(command.trim()) {
+                Unknown => stream.write("e:unknown request\n".as_bytes())?,
+                ROk(_) => stream.write("a\n".as_bytes())?,
+                OpenContext(message) => {
+                    let response = format!("c:{}\n", message);
+                    stream.write(response.as_bytes())?
+                }
                 Data(values) => {
                     //let mut data_buffer = [0; 512];
                     //write_data(message, &mut data_buffer);
@@ -33,8 +40,17 @@ fn handle_client(mut stream: TcpStream, db_home: &str) -> Result<(), Error> {
                     let response = format_data(values);
                     stream.write(response.as_bytes())?
                 }
+                Invalid(message) => {
+                    let response = format!("e:{}\n", message);
+                    stream.write(response.as_bytes())?
+                }
+                Error(message) => {
+                    let response = format!("x:{}\n", message);
+                    stream.write(response.as_bytes())?
+                }
                 _ => stream.write(b"not implemented\n")?,
             };
+            command.clear();
         }
     }
 }
@@ -45,6 +61,7 @@ fn main() {
     let port = properties.get(SERVER_PORT_PROPERTY);
     let bind_addr = format!("0.0.0.0:{}", port);
     let listener = TcpListener::bind(bind_addr).expect("Could not bind");
+    println!("Server listenting on port: {}", port);
     for stream in listener.incoming() {
         let db_home = properties.get(DATA_HOME_PROPERTY);
         match stream {
