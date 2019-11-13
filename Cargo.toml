@@ -8,3 +8,5 @@ edition = "2018"
 
 [dependencies]
 listdb-engine = { git = "https://github.com/jhallat/listdb-engine-rust"}
+log = "0.4.8"
+env_logger = "0.7.1"

@@ -1,5 +1,9 @@
+extern crate env_logger;
+extern crate log;
+
 use listdb_engine::dbprocess::DBResponse::*;
 use listdb_engine::DBEngine;
+use log::{debug, info};
 use properties::Properties;
 use std::io::{Error, Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -14,7 +18,7 @@ const PROPERTY_FILE: &str = "listdb.properties";
 
 fn handle_client(mut stream: TcpStream, db_home: &str) -> Result<(), Error> {
     let mut db_engine = DBEngine::new(&db_home);
-    println!("Incomming connection from: {}", stream.peer_addr()?);
+    info!("Incomming connection from: {}", stream.peer_addr()?);
     let mut buffer = [0; 512];
     let mut command = String::new();
     loop {
@@ -25,7 +29,7 @@ fn handle_client(mut stream: TcpStream, db_home: &str) -> Result<(), Error> {
         let input = str::from_utf8(&buffer[..bytes_read]).unwrap();
         command.push_str(input);
         if input.contains("\n") {
-            println!("rcvd: {}", input);
+            debug!("rcvd: {}", input);
             match db_engine.request(command.trim()) {
                 Unknown => stream.write("e:unknown request\n".as_bytes())?,
                 ROk(_) => stream.write("a\n".as_bytes())?,
@@ -56,12 +60,13 @@ fn handle_client(mut stream: TcpStream, db_home: &str) -> Result<(), Error> {
 }
 
 fn main() {
+    env_logger::init();
     let mut properties = Properties::new();
     properties.load(PROPERTY_FILE);
     let port = properties.get(SERVER_PORT_PROPERTY);
     let bind_addr = format!("0.0.0.0:{}", port);
     let listener = TcpListener::bind(bind_addr).expect("Could not bind");
-    println!("Server listenting on port: {}", port);
+    info!("Server listenting on port: {}", port);
     for stream in listener.incoming() {
         let db_home = properties.get(DATA_HOME_PROPERTY);
         match stream {
@@ -75,31 +80,24 @@ fn main() {
     }
 }
 
-fn format_data(data: Vec<String>) -> String {
+fn format_data(data: Vec<(String, String)>) -> String {
     let count = format!("c{}:", data.len());
     let mut sizes = "s".to_string();
     let mut values = String::new();
 
-    for value in data {
-        sizes.push_str(&value.len().to_string());
+    for (key, value) in data {
+        //Temporary fix. Should be handled better
+        let temp_key = if key.len() == 36 {
+            &key
+        } else {
+            "                                    "
+        };
+        let total = temp_key.len() + &value.len();
+        sizes.push_str(&total.to_string());
         sizes.push(':');
+        values.push_str(temp_key);
         values.push_str(&value.to_string());
     }
 
     format!("d{}{}{}\n", count, sizes, values)
 }
-
-//fn write_data(message: Vec<String>, buffer: &mut [u8]) {
-//    if message.len() > 1 {
-//        let value = format!("{}\n", message.get(0).unwrap());
-//        let bytes = value.as_bytes();
-//        for (index, byte) in bytes.iter().enumerate() {
-//            buffer[index] = *byte;
-//        }
-//    } else {
-//        let bytes = "nothing\n".as_bytes();
-//        for (index, byte) in bytes.iter().enumerate() {
-//            buffer[index] = *byte;
-//        }
-//    }
-//}
