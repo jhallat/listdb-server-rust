@@ -99,5 +99,5 @@ fn format_data(data: Vec<(String, String)>) -> String {
         values.push_str(&value);
     }
 
-    format!("d{}k{}{}{}\n", count, key_length, sizes, values)
+    format!("d{}k{}:{}{}\n", count, key_length, sizes, values)
 }
