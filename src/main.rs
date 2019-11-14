@@ -3,7 +3,7 @@ extern crate log;
 
 use listdb_engine::dbprocess::DBResponse::*;
 use listdb_engine::DBEngine;
-use log::{debug, info};
+use log::{debug, error, info};
 use properties::Properties;
 use std::io::{Error, Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -70,10 +70,10 @@ fn main() {
     for stream in listener.incoming() {
         let db_home = properties.get(DATA_HOME_PROPERTY);
         match stream {
-            Err(e) => eprintln!("failed: {}", e),
+            Err(e) => error!("failed: {}", e),
             Ok(stream) => {
                 thread::spawn(move || {
-                    handle_client(stream, &db_home).unwrap_or_else(|error| eprintln!("{:?}", error))
+                    handle_client(stream, &db_home).unwrap_or_else(|error| error!("{:?}", error))
                 });
             }
         }
@@ -84,20 +84,20 @@ fn format_data(data: Vec<(String, String)>) -> String {
     let count = format!("c{}:", data.len());
     let mut sizes = "s".to_string();
     let mut values = String::new();
+    let key_length = if data.len() > 1 {
+        let (temp_key, _) = data.get(0).unwrap();
+        temp_key.len()
+    } else {
+        0
+    };
 
     for (key, value) in data {
-        //Temporary fix. Should be handled better
-        let temp_key = if key.len() == 36 {
-            &key
-        } else {
-            "                                    "
-        };
-        let total = temp_key.len() + &value.len();
+        let total = key_length + &value.len();
         sizes.push_str(&total.to_string());
         sizes.push(':');
-        values.push_str(temp_key);
-        values.push_str(&value.to_string());
+        values.push_str(&key);
+        values.push_str(&value);
     }
 
-    format!("d{}{}{}\n", count, sizes, values)
+    format!("d{}k{}{}{}\n", count, key_length, sizes, values)
 }
