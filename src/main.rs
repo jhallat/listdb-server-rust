@@ -5,6 +5,7 @@ use listdb_engine::dbprocess::DBResponse::*;
 use listdb_engine::DBEngine;
 use log::{debug, error, info};
 use properties::Properties;
+use std::env;
 use std::io::{Error, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::str;
@@ -61,8 +62,9 @@ fn handle_client(mut stream: TcpStream, db_home: &str) -> Result<(), Error> {
 
 fn main() {
     env_logger::init();
+    let args: Vec<String> = env::args().collect();
     let mut properties = Properties::new();
-    properties.load(PROPERTY_FILE);
+    properties.load(PROPERTY_FILE, args);
     let port = properties.get(SERVER_PORT_PROPERTY);
     let bind_addr = format!("0.0.0.0:{}", port);
     let listener = TcpListener::bind(bind_addr).expect("Could not bind");
