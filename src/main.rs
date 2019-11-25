@@ -1,8 +1,10 @@
 extern crate env_logger;
 extern crate log;
 
+use env_logger::Builder;
 use listdb_engine::dbprocess::DBResponse::*;
 use listdb_engine::DBEngine;
+use log::LevelFilter;
 use log::{debug, error, info};
 use properties::Properties;
 use std::env;
@@ -17,7 +19,7 @@ const SERVER_PORT_PROPERTY: &str = "server.port";
 const DATA_HOME_PROPERTY: &str = "data.home";
 const PROPERTY_FILE: &str = "listdb.properties";
 
-fn handle_client(mut stream: TcpStream, db_home: &str) -> Result<(), Error> {
+fn handle_client(mut stream: TcpStream, db_home: &str) -> Result<i8, Error> {
     let mut db_engine = DBEngine::new(&db_home);
     info!("Incomming connection from: {}", stream.peer_addr()?);
     let mut buffer = [0; 512];
@@ -25,14 +27,21 @@ fn handle_client(mut stream: TcpStream, db_home: &str) -> Result<(), Error> {
     loop {
         let bytes_read = stream.read(&mut buffer)?;
         if bytes_read == 0 {
-            return Ok(());
+            return Ok(0);
         }
-        let input = str::from_utf8(&buffer[..bytes_read]).unwrap();
+        let input = match str::from_utf8(&buffer[..bytes_read]) {
+            Ok(value) => value,
+            _ => "",
+        };
+        debug!("input = {}", input);
         command.push_str(input);
         if input.contains("\n") {
             debug!("rcvd: {}", input);
             match db_engine.request(command.trim()) {
-                Unknown => stream.write("e:unknown request\n".as_bytes())?,
+                Unknown(message) => {
+                    let response = format!("e:unknown request-{}\n", message);
+                    stream.write(response.as_bytes())?
+                }
                 ROk(_) => stream.write("a\n".as_bytes())?,
                 OpenContext(message) => {
                     let response = format!("c:{}\n", message);
@@ -61,8 +70,11 @@ fn handle_client(mut stream: TcpStream, db_home: &str) -> Result<(), Error> {
 }
 
 fn main() {
-    env_logger::init();
+    //env_logger::init();
+    //TODO Initialize from properties file
+    Builder::new().filter(None, LevelFilter::Debug).init();
     let args: Vec<String> = env::args().collect();
+    debug!("{:?}", args);
     let mut properties = Properties::new();
     properties.load(PROPERTY_FILE, args);
     let port = properties.get(SERVER_PORT_PROPERTY);
@@ -74,12 +86,16 @@ fn main() {
         match stream {
             Err(e) => error!("failed: {}", e),
             Ok(stream) => {
-                thread::spawn(move || {
-                    handle_client(stream, &db_home).unwrap_or_else(|error| error!("{:?}", error))
+                thread::spawn(move || match handle_client(stream, &db_home) {
+                    Ok(value) => {
+                        debug!("thread closed with return value {}", value);
+                    }
+                    Err(error) => error!("{:?}", error),
                 });
             }
         }
     }
+    drop(listener);
 }
 
 fn format_data(data: Vec<(String, String)>) -> String {

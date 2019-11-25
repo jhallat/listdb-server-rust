@@ -1,3 +1,4 @@
+use log::warn;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::prelude::*;
@@ -16,18 +17,22 @@ impl Properties {
 
     pub fn load(&mut self, prop_file_name: &str, args: Vec<String>) {
         self.property_map.clear();
-        let file =
-            File::open(prop_file_name).expect("I tried, but I can't open the property file.");
-        let buffer = BufReader::new(file);
-
-        for property_line in buffer.lines() {
-            let contents = property_line.unwrap();
-            let property_values: Vec<&str> = contents.split('=').collect();
-            self.property_map.insert(
-                property_values[0].to_string().trim().to_string(),
-                property_values[1].to_string().trim().to_string(),
-            );
+        let file_result = File::open(prop_file_name);
+        match file_result {
+            Ok(file) => {
+                let buffer = BufReader::new(file);
+                for property_line in buffer.lines() {
+                    let contents = property_line.unwrap();
+                    let property_values: Vec<&str> = contents.split('=').collect();
+                    self.property_map.insert(
+                        property_values[0].to_string().trim().to_string(),
+                        property_values[1].to_string().trim().to_string(),
+                    );
+                }
+            }
+            _ => warn!("Unable to find properties file"),
         }
+
         for arg in args {
             if arg.trim_start().starts_with("-p") && arg.contains("=") {
                 let tokens: Vec<&str> = arg.split("=").collect();
