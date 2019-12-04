@@ -62,6 +62,10 @@ fn handle_client(mut stream: TcpStream, db_home: &str) -> Result<i8, Error> {
                     let response = format!("x:{}\n", message);
                     stream.write(response.as_bytes())?
                 }
+                Created(message) => {
+                    let response = format!("i:{}\n", message);
+                    stream.write(response.as_bytes())?
+                }
                 _ => stream.write(b"not implemented\n")?,
             };
             command.clear();
