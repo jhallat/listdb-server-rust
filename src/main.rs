@@ -106,7 +106,7 @@ fn format_data(data: Vec<(String, String)>) -> String {
     let count = format!("c{}:", data.len());
     let mut sizes = "s".to_string();
     let mut values = String::new();
-    let key_length = if data.len() > 1 {
+    let key_length = if data.len() > 0 {
         let (temp_key, _) = data.get(0).unwrap();
         temp_key.len()
     } else {
